@@ -3,20 +3,30 @@
   Sharp Optical Dust Sensor GP2Y1010AU0F
 */
 #include <LiquidCrystal.h>
+#include <DHT11.h>
 #include <stdlib.h>
 
 #define NO_DUST_VOLTAGE 0.0
-#define DUST_PIN 5
-#define LED_PIN 12
+#define ANALOG_PIN_DUST 5
+#define DIGITAL_PIN_LED 12
+#define ANALOG_PIN_TH 11
+
+#define DUST_SAMPLING_TIME_MICRO 280
+#define DUST_DELTA_TIME_MICRO 40
+#define DUST_SLEEP_TIME_MICRO 9680
+
+
+
 /* https://www.airkorea.or.kr/index
  * ~ 030 ㎍/㎥ good
  * ~ 080 ㎍/㎥ noraml
  * ~ 150 ㎍/㎥ bad
  * 150 ~ very bad
- */
+
 #define AIR_QUALITY_GOOD 30
 #define AIR_QUALITY_NORMAL 80
 #define AIR_QUALITY_BAD 150
+ */
 
 #define BUTTON_NONE   0
 #define BUTTON_SELECT 1
@@ -26,15 +36,13 @@
 #define BUTTON_RIGHT  5
 
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+DHT11 dht11(ANALOG_PIN_TH);
 /* Pulse-driven wave from
  *  
  *  <--10ms 1 Pulse----------------------------------------------------------..
  *  <--0.32ms LED ON------------------------------------------><--Rest LED OFF--..
  *  <--0.28ms Sampling delay--><-Sampling-><-0.04ms Off Delay->
  */
-int samplingTime = 280;
-int deltaTime = 40;
-int sleepTime = 9680;
 
 float readVoltage = 0.0;
 float realVoltage = 0.0;
@@ -45,6 +53,9 @@ int dustFlag = 0;
 
 int read_button = 0;
 
+int err = 0;
+float temp = 0.0;
+float humi = 0.0;
 int read_LCD_buttons()
 {
   read_button = analogRead(0); //analog read from AO pin
@@ -89,28 +100,42 @@ void setup() {
   lcd.begin(16, 2); //LCD init
   lcd.setCursor(0, 0); //LCD cursor set
   lcd.print("Air Condition"); //LCD display
-  pinMode(LED_PIN, OUTPUT);
+  pinMode(DIGITAL_PIN_LED, OUTPUT);
 }
 
 void loop() {
-  dustFlag = millis()/1000;
-  Serial.print("dustFlag : ");
+  Serial.print("digitalRead analog_pin_th : ");
+  Serial.println(digitalRead(ANALOG_PIN_TH));
+  dustFlag = millis()%1000;
+  Serial.print("millisec : ");
+  Serial.print(millis());
+  Serial.print(" : dustFlag : ");
   Serial.println(dustFlag);
   
-  //BUTTON START
   read_button  = read_LCD_buttons();
-  //BUTTON END
+
+  err=dht11.read(humi, temp);
+  Serial.print("humi/temp : ");
+  if(err == 0) {
+    Serial.print(humi);
+    Serial.print("/");
+    Serial.println(temp);
+  } else {
+    Serial.print("error : ");
+    Serial.println(err);
+  }
+  
   if(dustFlag%2 != 0) {
-    delay(1000);
+    delay(DHT11_RETRY_DELAY);
     return;
   }
   //DUST START
-  digitalWrite(LED_PIN, LOW);         // power on the LED
-  delayMicroseconds(samplingTime);    //0280 -> 0.28
-  readVoltage = analogRead(DUST_PIN); // read the dust value
-  delayMicroseconds(deltaTime);       //0040 -> 0.04
-  digitalWrite(LED_PIN, HIGH);        // turn the LED off
-  delayMicroseconds(sleepTime);       //9680 -> 9.68 -+-> 10ms
+  digitalWrite(DIGITAL_PIN_LED, LOW);          // power on the LED
+  delayMicroseconds(DUST_SAMPLING_TIME_MICRO); //0280 us -> 0.28 ms
+  readVoltage = analogRead(ANALOG_PIN_DUST);   // read the dust value
+  delayMicroseconds(DUST_DELTA_TIME_MICRO);    //0040 us -> 0.04 ms
+  digitalWrite(DIGITAL_PIN_LED, HIGH);         // turn the LED off
+  delayMicroseconds(DUST_SLEEP_TIME_MICRO);    //9680 us -> 9.68 ms -sum-> 10ms
 
   realVoltage = (readVoltage*5.0)/1024.0; //convert analog value to voltage
   dustdensity = (realVoltage-NO_DUST_VOLTAGE)/0.0005;
@@ -143,5 +168,5 @@ void loop() {
   lcd.print(dtostrf(dustdensity, 6, 2, s));
   //LCD END
 
-  delay(1000);
+  delay(890);
 }
