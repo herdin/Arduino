@@ -6,10 +6,14 @@
 #include <dht.h>
 #include <stdlib.h>
 
+#define PULSE_MILLISECOND 1000
+
 #define NO_DUST_VOLTAGE 0.0
+
 #define ANALOG_PIN_DUST 5
-#define DIGITAL_PIN_LED 12
 #define ANALOG_PIN_TH 11
+
+#define DIGITAL_PIN_LED 12
 
 #define DUST_SAMPLING_TIME_MICRO 280
 #define DUST_DELTA_TIME_MICRO 40
@@ -52,8 +56,8 @@ int dustFlag = 0;
 int read_button = 0;
 
 int err = 0;
-float temp = 0.0;
-float humi = 0.0;
+double temp = 0.0;
+double humi = 0.0;
 
 void button_select() {
   
@@ -62,7 +66,7 @@ void button_left() {
   
 }
 void button_down() {
-  caliVoltage = caliVoltage - 1;
+  caliVoltage = caliVoltage - 0.1;
   if(caliVoltage < 0.0) {
     caliVoltage = 0;
   }
@@ -70,7 +74,7 @@ void button_down() {
   lcd.print(dtostrf(caliVoltage, 6, 2, s));
 }
 void button_up() {
-  caliVoltage = caliVoltage + 1;
+  caliVoltage = caliVoltage + 0.1;
   lcd.setCursor(0, 1);
   lcd.print(dtostrf(caliVoltage, 6, 2, s));
 }
@@ -125,7 +129,7 @@ void setup() {
   Serial.begin(9600);
   lcd.begin(16, 2); //LCD init
   lcd.setCursor(0, 0); //LCD cursor set
-  lcd.print("Air Condition"); //LCD display
+  lcd.print("initialize.."); //LCD display
   pinMode(DIGITAL_PIN_LED, OUTPUT);
 }
 
@@ -141,7 +145,7 @@ void loop() {
 
   if(dustFlag%2 != 0) {
     Serial.println("----------------------------------");
-    delay(5000);
+    delay(PULSE_MILLISECOND);
     return;
   }
 
@@ -149,9 +153,11 @@ void loop() {
   err = DHT.read11(ANALOG_PIN_TH);
   Serial.print("temp/humi : ");
   if(err == -1) {
-    Serial.print(DHT.temperature);
+    temp = DHT.temperature;
+    humi = DHT.humidity;
+    Serial.print(temp);
     Serial.print("/");
-    Serial.println(DHT.humidity);
+    Serial.println(humi);
   } else {
     Serial.print(" error : ");
     Serial.println(err);
@@ -169,6 +175,11 @@ void loop() {
   realVoltage = (readVoltage*5.0)/1024.0; //convert analog value to voltage
 //  dustdensity = (realVoltage-NO_DUST_VOLTAGE)/0.0005;
   dustdensity = (realVoltage-caliVoltage)/0.005;
+  if(dustdensity < 0.0) {
+    dustdensity = 0.0;
+  } else if(dustdensity > 999.0) {
+    dustdensity = 999.0;
+  }
   //DUST END
 
   //LOG START
@@ -179,25 +190,30 @@ void loop() {
    * char* charBuffer
    */
   String logString = "readVoltage[";
-  logString += dtostrf(readVoltage, 10, 4, s); //9, 4
+  logString += dtostrf(readVoltage, 7, 2, s);
   logString += "] realVoltage[";
-  logString += dtostrf(realVoltage, 10, 4, s); //9, 4
+  logString += dtostrf(realVoltage, 7, 2, s);
+  logString += "] caliVoltage[";
+  logString += dtostrf(caliVoltage, 7, 2, s);
   logString += "] dustdensity[";
-  logString += dtostrf(dustdensity, 10, 4, s); //5, 2
-  logString += "]\n";
-  Serial.print(logString);
+  logString += dtostrf(dustdensity, 7, 2, s);
+  logString += "]";
+  Serial.println(logString);
   //LOG START
 
   //LCD STAR
   lcd.setCursor(0, 0); //LCD cursor line 0 pannel 0
-  lcd.print(dtostrf(readVoltage, 6, 2, s));
-  lcd.print(" ->");
-  lcd.print(dtostrf(realVoltage, 6, 2, s));
+  lcd.print(dtostrf(temp, 5, 1, s));
+  lcd.print((char)223);
+  lcd.print("C");
+  lcd.print(dtostrf(humi, 5, 1, s));
+  lcd.print("%");
   
   lcd.setCursor(0, 1); //LCD cursor line 0 pannel 1
   lcd.print(dtostrf(dustdensity, 6, 2, s));
+  lcd.print("ug/m3");
   //LCD END
   
   Serial.println("----------------------------------");
-  delay(4890);
+  delay(PULSE_MILLISECOND-110);
 }
