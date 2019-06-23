@@ -70,6 +70,7 @@ void setup() {
 }
 
 void loop() {
+  //DUST START
   digitalWrite(ledPower, LOW); // power on the LED
   delayMicroseconds(samplingTime);
   realVoltage = analogRead(dustPin); // read the dust value
@@ -93,7 +94,7 @@ void loop() {
     dustdensity = 0;
   if (dustdensity > 0.5)
     dustdensity = 0.5;
-
+  //DUST END
   /* dtostrf(
    * double target_value,
    * signed char total_string_length,
